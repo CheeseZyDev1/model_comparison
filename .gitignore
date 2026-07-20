@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+results/*
+!results/.gitkeep
+model_inputs/*/predictions.json
+model_inputs/*/weights/
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml

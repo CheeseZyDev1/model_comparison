@@ -1,0 +1,6 @@
+model,framework/model,image size,epochs,batch,optimizer,learning rate,pretrained,AMP,seed,workers,classes,best epoch,parameters (M),training (hours),test FPS
+YOLOv11-1,yolo11l.pt,640,50,8,Ultralytics auto,auto,True,True,42,4,20,,25.33,2.53,93.1
+RT-DETR-1,rtdetr-l.pt,640,50,4,Ultralytics auto,auto,True,True,42,4,20,,32.85,4.99,46.53
+VGG16-4,Faster R-CNN + FPN,640,50,2,SGD,0.005,True,True,45,4,20,49.0,32.03,30.96,10.29
+EfficientNet-1,Faster R-CNN + FPN,640,50,2,SGD,0.005,True,True,42,4,20,50.0,21.34,29.5,10.9
+ResNet50-1,Faster R-CNN + FPN,640,50,2,SGD,0.005,True,True,42,4,20,50.0,41.45,29.87,10.74

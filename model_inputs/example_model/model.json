@@ -1,0 +1,8 @@
+{
+  "display_name": "Example model (disabled until predictions.json is added)",
+  "framework": "your-framework",
+  "weight_file": "weights/best.pt",
+  "inference_ms_per_image": null,
+  "notes": "Copy this folder, rename it, and add predictions.json"
+}
+

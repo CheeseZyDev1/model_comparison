@@ -1,0 +1,6 @@
+__pycache__
+results/*
+model_inputs/*/weights
+model_inputs/*/predictions.json
+.ipynb_checkpoints
+
