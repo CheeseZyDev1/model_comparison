@@ -98,8 +98,13 @@ def show_thesis() -> None:
 st.set_page_config(page_title="X-ray FSOD Project", page_icon="📊", layout="wide")
 page = st.sidebar.radio(
     "เมนู",
-    ["ผลเปรียบเทียบโมเดล", "อ่านเล่มปริญญานิพนธ์"],
+    ["ผลเปรียบเทียบโมเดล", "ทดสอบโมเดลจริง", "อ่านเล่มปริญญานิพนธ์"],
 )
+if page == "ทดสอบโมเดลจริง":
+    from model_demo import show_model_demo
+
+    show_model_demo()
+    st.stop()
 if page == "อ่านเล่มปริญญานิพนธ์":
     show_thesis()
     st.stop()

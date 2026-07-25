@@ -1,12 +1,12 @@
 # X-ray FSOD Model Report
 
-Read-only Streamlit dashboard comparing EfficientNet, ResNet50, RT-DETR, VGG16, and YOLOv11. The app also includes an in-browser reader and download link for the current thesis PDF.
+Streamlit dashboard comparing EfficientNet, ResNet50, RT-DETR, VGG16, and YOLOv11. The app also includes a YOLOv11 inference demo and an in-browser reader with a download link for the current thesis PDF.
 
 ## Safe GitHub deployment
 
-Upload **this `model_comparison` folder only** as the repository root. Do not upload the parent project, `xrayfsod_outputs`, datasets, model weights, prediction JSON, `.env`, or `secrets.toml`.
+Upload **this `model_comparison` folder only** as the repository root. Do not upload the parent project, `xrayfsod_outputs`, datasets, additional model weights, prediction JSON, `.env`, or `secrets.toml`.
 
-The committed `public_report/` contains only sanitized CSV/PNG report artifacts. The current thesis PDF is stored at `thesis/thesis_latest.pdf`. On Streamlit Community Cloud the app detects that local model files are absent and automatically runs in read-only mode: no evaluation button and no filesystem path inputs.
+The committed `public_report/` contains only sanitized CSV/PNG report artifacts. The selected YOLOv11 weight is stored at `models/yolov11_xrayfsod_best.pt`, and the current thesis PDF is stored at `thesis/thesis_latest.pdf`. On Streamlit Community Cloud the report remains read-only while the model demo accepts one uploaded X-ray image at a time.
 
 Deploy with Streamlit Community Cloud:
 
