@@ -51,10 +51,46 @@ def show_thesis() -> None:
         st.warning("ไม่พบภาพตัวอย่างแต่ละหน้า กรุณาใช้ปุ่มดาวน์โหลด PDF")
         return
 
-    page_number = st.slider("เลือกหน้า", 1, len(page_files), 1)
+    page_count = len(page_files)
+    page_state = "thesis_page_number"
+    if page_state not in st.session_state:
+        st.session_state[page_state] = 1
+    st.session_state[page_state] = min(max(int(st.session_state[page_state]), 1), page_count)
+
+    def change_page(step: int) -> None:
+        current = int(st.session_state[page_state])
+        st.session_state[page_state] = min(max(current + step, 1), page_count)
+
+    previous, page_list, next_page = st.columns([1, 2, 1])
+    with previous:
+        st.button(
+            "← ก่อนหน้า",
+            on_click=change_page,
+            args=(-1,),
+            disabled=st.session_state[page_state] == 1,
+            use_container_width=True,
+        )
+    with page_list:
+        st.selectbox(
+            "รายการหน้า",
+            options=range(1, page_count + 1),
+            key=page_state,
+            format_func=lambda page: f"หน้า {page} จาก {page_count}",
+            label_visibility="collapsed",
+        )
+    with next_page:
+        st.button(
+            "ถัดไป →",
+            on_click=change_page,
+            args=(1,),
+            disabled=st.session_state[page_state] == page_count,
+            use_container_width=True,
+        )
+
+    page_number = int(st.session_state[page_state])
     st.image(
         str(page_files[page_number - 1]),
-        caption=f"หน้า {page_number} จาก {len(page_files)}",
+        caption=f"หน้า {page_number} จาก {page_count}",
         use_container_width=True,
     )
 
