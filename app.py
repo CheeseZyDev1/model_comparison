@@ -15,6 +15,8 @@ DEFAULT_MODEL_ROOT = Path(os.environ.get("MODEL_ROOT", APP_DIR / BASE_CONFIG["mo
 report_mode = os.environ.get("REPORT_MODE")
 PUBLIC_MODE = report_mode.lower() == "true" if report_mode is not None else not DEFAULT_MODEL_ROOT.is_dir()
 PUBLIC_REPORT = APP_DIR / "public_report"
+THESIS_PDF = APP_DIR / "thesis" / "thesis_latest.pdf"
+THESIS_PAGES = APP_DIR / "thesis" / "pages"
 
 
 def display_columns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -28,7 +30,44 @@ def display_columns(frame: pd.DataFrame) -> pd.DataFrame:
 if not PUBLIC_MODE:
     from evaluator import evaluate_all, load_learning_curve, load_training_settings
 
-st.set_page_config(page_title="X-ray Model Comparison", page_icon="📊", layout="wide")
+def show_thesis() -> None:
+    st.title("เล่มปริญญานิพนธ์")
+    st.caption("ระบบตรวจจับวัตถุต้องห้ามในภาพเอกซเรย์ - ฉบับปัจจุบันสำหรับอ่านตรวจเนื้อหาและรูปแบบ")
+    if not THESIS_PDF.is_file():
+        st.error("ไม่พบไฟล์ PDF ของเล่มปริญญานิพนธ์")
+        return
+
+    pdf_bytes = THESIS_PDF.read_bytes()
+    st.download_button(
+        "ดาวน์โหลด PDF",
+        data=pdf_bytes,
+        file_name="Napat_Nueyen_XrayFSOD_Thesis.pdf",
+        mime="application/pdf",
+        type="primary",
+    )
+
+    page_files = sorted(THESIS_PAGES.glob("page-*.png"))
+    if not page_files:
+        st.warning("ไม่พบภาพตัวอย่างแต่ละหน้า กรุณาใช้ปุ่มดาวน์โหลด PDF")
+        return
+
+    page_number = st.slider("เลือกหน้า", 1, len(page_files), 1)
+    st.image(
+        str(page_files[page_number - 1]),
+        caption=f"หน้า {page_number} จาก {len(page_files)}",
+        use_container_width=True,
+    )
+
+
+st.set_page_config(page_title="X-ray FSOD Project", page_icon="📊", layout="wide")
+page = st.sidebar.radio(
+    "เมนู",
+    ["ผลเปรียบเทียบโมเดล", "อ่านเล่มปริญญานิพนธ์"],
+)
+if page == "อ่านเล่มปริญญานิพนธ์":
+    show_thesis()
+    st.stop()
+
 st.title("X-ray Model Comparison")
 st.caption("เปรียบเทียบทุกโมเดลด้วย test set และเกณฑ์เดียวกัน")
 
