@@ -7,7 +7,6 @@ from time import perf_counter
 import pandas as pd
 import streamlit as st
 from PIL import Image, UnidentifiedImageError
-from ultralytics import YOLO
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -16,7 +15,9 @@ MAX_IMAGE_PIXELS = 25_000_000
 
 
 @st.cache_resource(show_spinner=False)
-def load_demo_model() -> YOLO:
+def load_demo_model():
+    from ultralytics import YOLO
+
     return YOLO(str(MODEL_PATH))
 
 
