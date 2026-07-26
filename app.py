@@ -115,7 +115,7 @@ st.caption("เปรียบเทียบทุกโมเดลด้ว�
 model_root = str(DEFAULT_MODEL_ROOT)
 if PUBLIC_MODE:
     st.sidebar.success("Public report · read-only")
-    st.sidebar.caption("ไม่มี model weights, dataset หรือ filesystem access บนเว็บนี้")
+    st.sidebar.caption("รายงานไม่เปิด filesystem/evaluator; มีเฉพาะ selected YOLO weight สำหรับหน้า demo")
     run_clicked = False
 else:
     with st.sidebar:
@@ -166,6 +166,40 @@ if summary is None:
     st.info("ยังไม่มี public report" if PUBLIC_MODE else "ตั้งค่า path ด้านซ้าย แล้วกด **ประเมินโมเดล**")
     st.stop()
 
+numeric_metrics = ["precision", "recall", "f1", "macro_f1", "mAP_50_95", "best_f1", "best_confidence"]
+for metric in numeric_metrics:
+    if metric in summary:
+        summary[metric] = pd.to_numeric(summary[metric], errors="coerce")
+
+best_shared_f1 = summary.loc[summary["f1"].idxmax()]
+best_map = summary.loc[summary["mAP_50_95"].idxmax()]
+best_recall = summary.loc[summary["recall"].idxmax()]
+best_sweep = summary.loc[summary["best_f1"].idxmax()]
+
+st.subheader("สรุปผลสำคัญ")
+headline_metrics = st.columns(4)
+headline_metrics[0].metric(
+    "F1 สูงสุด", str(best_shared_f1["model"]), f"{best_shared_f1['f1']:.4f}", delta_color="off"
+)
+headline_metrics[1].metric(
+    "mAP@0.50:0.95 สูงสุด", str(best_map["model"]), f"{best_map['mAP_50_95']:.4f}", delta_color="off"
+)
+headline_metrics[2].metric(
+    "Recall สูงสุด", str(best_recall["model"]), f"{best_recall['recall']:.4f}", delta_color="off"
+)
+headline_metrics[3].metric(
+    "Best F1 จาก threshold sweep",
+    str(best_sweep["model"]),
+    f"{best_sweep['best_f1']:.4f} @ conf {best_sweep['best_confidence']:.2f}",
+    delta_color="off",
+)
+shared_confidence = float(summary["confidence"].iloc[0]) if "confidence" in summary else 0.25
+shared_iou = float(summary["iou"].iloc[0]) if "iou" in summary else 0.50
+st.caption(
+    f"F1/Precision/Recall เปรียบเทียบที่ confidence {shared_confidence:.2f}, IoU {shared_iou:.2f} "
+    "และใช้ test set เดียวกันทุกโมเดล"
+)
+
 st.subheader("อันดับรวม")
 st.dataframe(display_columns(summary), use_container_width=True, hide_index=True)
 st.download_button(
@@ -195,7 +229,8 @@ else:
             settings_rows.append(settings)
             training_configs[str(row["model"])] = full_config
 if settings_rows:
-    st.dataframe(pd.DataFrame(settings_rows), use_container_width=True, hide_index=True)
+    settings_frame = pd.DataFrame(settings_rows)
+    st.dataframe(settings_frame, use_container_width=True, hide_index=True)
     st.caption(
         "ค่าร่วมจาก notebook: validation split 10% · pretrained · AMP · deterministic · "
         "ทดสอบด้วย confidence floor 0.001 และไม่เกิน 100 detections/ภาพ"
@@ -210,6 +245,15 @@ if settings_rows:
 - ทุกโมเดลเทรนสูงสุด **50 epochs**, target image size **640**, ใช้ **20 classes** และบันทึก `best.pt`
 """
         )
+    if "test FPS" in settings_frame:
+        fps_values = pd.to_numeric(settings_frame["test FPS"], errors="coerce")
+        if fps_values.notna().any():
+            fastest = settings_frame.loc[fps_values.idxmax()]
+            st.success(
+                f"ข้อสรุปสำหรับใช้งานจริง: {best_shared_f1['model']} ให้ F1 สูงสุดที่เกณฑ์กลาง "
+                f"และ {fastest['model']} เร็วที่สุดประมาณ {float(fastest['test FPS']):.1f} FPS; "
+                f"ส่วน {best_map['model']} เหมาะเมื่อให้ความสำคัญกับ mAP/Recall มากกว่า"
+            )
 else:
     st.warning("ไม่พบ config.json ในโฟลเดอร์ run จึงแสดง training settings ไม่ได้")
 
