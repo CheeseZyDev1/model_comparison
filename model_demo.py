@@ -46,6 +46,11 @@ LABEL_FONT_PATHS = (
     Path("/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf"),
     Path("/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf"),
 )
+LATIN_FONT_PATHS = (
+    Path("C:/Windows/Fonts/LeelawUI.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    Path("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"),
+)
 
 
 @st.cache_resource(show_spinner=False)
@@ -62,6 +67,14 @@ def display_name(class_name: str) -> str:
 @lru_cache(maxsize=16)
 def label_font(size: int):
     for path in LABEL_FONT_PATHS:
+        if path.is_file():
+            return ImageFont.truetype(str(path), size=size)
+    return ImageFont.load_default()
+
+
+@lru_cache(maxsize=16)
+def latin_font(size: int):
+    for path in LATIN_FONT_PATHS:
         if path.is_file():
             return ImageFont.truetype(str(path), size=size)
     return ImageFont.load_default()
@@ -90,31 +103,46 @@ def detection_rows(result) -> list[dict]:
     return rows
 
 
-def annotate_detections(image: Image.Image, rows: list[dict], status: str | None = None) -> Image.Image:
+def text_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    return right - left, bottom - top
+
+
+def annotate_detections(
+    image: Image.Image,
+    rows: list[dict],
+    status_segments: list[tuple[str, object]] | None = None,
+) -> Image.Image:
     canvas = image.convert("RGB").copy()
     draw = ImageDraw.Draw(canvas)
     font = label_font(max(16, min(28, canvas.width // 36)))
+    value_font = latin_font(max(16, min(28, canvas.width // 36)))
 
     for row in rows:
         x1, y1, x2, y2 = (int(row[key]) for key in ("x1", "y1", "x2", "y2"))
-        label = f"{row['class']} {row['confidence']:.2f}"
-        text_left, text_top, text_right, text_bottom = draw.textbbox((0, 0), label, font=font)
-        text_width = text_right - text_left
-        text_height = text_bottom - text_top
+        class_label = row["class"]
+        value_label = f" {row['confidence']:.2f}"
+        class_width, class_height = text_size(draw, class_label, font)
+        value_width, value_height = text_size(draw, value_label, value_font)
+        text_width = class_width + value_width
+        text_height = max(class_height, value_height)
         label_top = max(y1 - text_height - 12, 0)
         label_right = min(x1 + text_width + 12, canvas.width)
 
         draw.rectangle((x1, y1, x2, y2), outline="#22c55e", width=3)
         draw.rounded_rectangle((x1, label_top, label_right, label_top + text_height + 10), radius=4, fill="#14532d")
-        draw.text((x1 + 6, label_top + 3), label, font=font, fill="white")
+        draw.text((x1 + 6, label_top + 3), class_label, font=font, fill="white")
+        draw.text((x1 + 6 + class_width, label_top + 3), value_label, font=value_font, fill="white")
 
-    if status:
-        status_font = label_font(max(15, min(24, canvas.width // 42)))
-        left, top, right, bottom = draw.textbbox((0, 0), status, font=status_font)
-        status_width = right - left
-        status_height = bottom - top
+    if status_segments:
+        segment_sizes = [(text, *text_size(draw, text, segment_font)) for text, segment_font in status_segments]
+        status_width = sum(width for _, width, _ in segment_sizes)
+        status_height = max(height for _, _, height in segment_sizes)
         draw.rounded_rectangle((8, 8, status_width + 24, status_height + 22), radius=4, fill="#1f2937")
-        draw.text((16, 12), status, font=status_font, fill="white")
+        cursor_x = 16
+        for (text, segment_font), (_, segment_width, _) in zip(status_segments, segment_sizes):
+            draw.text((cursor_x, 12), text, font=segment_font, fill="white")
+            cursor_x += segment_width
 
     return canvas
 
@@ -272,8 +300,17 @@ class LiveYoloProcessor:
 
             busy = self._busy
 
-        status = "กำลังตรวจจับ..." if busy else f"ผลล่าสุด: {len(detections)} วัตถุ | {inference_ms:.0f} ms"
-        annotated = annotate_detections(Image.fromarray(image[:, :, ::-1].copy()), detections, status)
+        status_font = label_font(max(15, min(24, image.shape[1] // 42)))
+        if busy:
+            status_segments = [("กำลังตรวจจับ...", status_font)]
+        else:
+            status_segments = [
+                ("ผลล่าสุด: ", status_font),
+                (f"{len(detections)}", latin_font(max(15, min(24, image.shape[1] // 42)))),
+                (" วัตถุ | ", status_font),
+                (f"{inference_ms:.0f} ms", latin_font(max(15, min(24, image.shape[1] // 42)))),
+            ]
+        annotated = annotate_detections(Image.fromarray(image[:, :, ::-1].copy()), detections, status_segments)
         return av.VideoFrame.from_ndarray(
             np.ascontiguousarray(np.asarray(annotated)[:, :, ::-1]),
             format="bgr24",
