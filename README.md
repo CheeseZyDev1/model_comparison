@@ -3,14 +3,16 @@
 Streamlit dashboard comparing EfficientNet, ResNet50, RT-DETR, VGG16, and YOLOv11. It includes:
 
 - a read-only comparison report with headline winners, COCO/F1 metrics, learning curves, training settings, and per-class results;
-- an explicit-submit YOLOv11 inference demo with upload-size and pixel-count limits; and
+- a YOLOv11 inference demo with image upload, camera snapshot, and live-camera modes; and
 - an in-browser thesis reader with a PDF download.
 
 ## Safe GitHub deployment
 
 Upload **this `model_comparison` folder only** as the repository root. Do not upload the parent project, `xrayfsod_outputs`, datasets, additional model weights, prediction JSON, `.env`, or `secrets.toml`.
 
-The committed `public_report/` contains only sanitized CSV/PNG report artifacts. The selected YOLOv11 weight is stored at `models/yolov11_xrayfsod_best.pt`, and the current thesis PDF is stored at `thesis/thesis_latest.pdf`. On Streamlit Community Cloud the report remains read-only while the model demo accepts one uploaded X-ray image at a time (maximum 10 MB and 25 million pixels).
+The committed `public_report/` contains only sanitized CSV/PNG report artifacts. The selected YOLOv11 weight is stored at `models/yolov11_xrayfsod_best.pt`, and the current thesis PDF is stored at `thesis/thesis_latest.pdf`. On Streamlit Community Cloud the report remains read-only while the model demo supports one image at a time (maximum 10 MB and 25 million pixels), camera snapshots, and live camera video.
+
+For live camera mode, allow browser camera permission and press `START`. Inference runs in a background worker at a configurable interval, so the preview continues to update while the selected YOLOv11 model detects multiple objects in the frame. HTTPS is required for camera access; if a network blocks WebRTC, use camera snapshot mode instead.
 
 Deploy with Streamlit Community Cloud:
 
