@@ -12,6 +12,8 @@ from PIL import Image, UnidentifiedImageError
 APP_DIR = Path(__file__).resolve().parent
 MODEL_PATH = APP_DIR / "models" / "yolov11_xrayfsod_best.pt"
 MAX_IMAGE_PIXELS = 25_000_000
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
 @st.cache_resource(show_spinner=False)
@@ -52,28 +54,37 @@ def show_model_demo() -> None:
         st.error("ไม่พบไฟล์โมเดลสำหรับการทดสอบ")
         return
 
-    threshold_column, iou_column = st.columns(2)
-    with threshold_column:
-        confidence = st.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05)
-    with iou_column:
-        iou = st.slider("IoU threshold", 0.10, 0.90, 0.50, 0.05)
+    with st.form("yolov11_demo_form"):
+        threshold_column, iou_column = st.columns(2)
+        with threshold_column:
+            confidence = st.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05)
+        with iou_column:
+            iou = st.slider("IoU threshold", 0.10, 0.90, 0.50, 0.05)
+        uploaded = st.file_uploader(
+            "ภาพเอกซเรย์",
+            type=["jpg", "jpeg", "png", "bmp", "tif", "tiff"],
+            accept_multiple_files=False,
+        )
+        st.caption("รองรับไฟล์ไม่เกิน 10 MB และความละเอียดไม่เกิน 25 ล้านพิกเซล")
+        submitted = st.form_submit_button("เริ่มตรวจจับ", type="primary", use_container_width=True)
 
-    uploaded = st.file_uploader(
-        "ภาพเอกซเรย์",
-        type=["jpg", "jpeg", "png", "bmp", "tif", "tiff"],
-        accept_multiple_files=False,
-    )
+    if not submitted:
+        return
     if uploaded is None:
+        st.info("กรุณาเลือกภาพเอกซเรย์ก่อนเริ่มตรวจจับ")
+        return
+    if uploaded.size > MAX_UPLOAD_BYTES:
+        st.error("ไฟล์มีขนาดเกิน 10 MB")
         return
 
     try:
-        image = Image.open(uploaded).convert("RGB")
-    except (UnidentifiedImageError, OSError):
+        image = Image.open(uploaded)
+        if image.width * image.height > MAX_IMAGE_PIXELS:
+            st.error("ภาพมีความละเอียดสูงเกินไป กรุณาใช้ภาพที่ไม่เกิน 25 ล้านพิกเซล")
+            return
+        image = image.convert("RGB")
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError):
         st.error("ไฟล์ที่อัปโหลดไม่ใช่ภาพที่รองรับ")
-        return
-
-    if image.width * image.height > MAX_IMAGE_PIXELS:
-        st.error("ภาพมีความละเอียดสูงเกินไป กรุณาใช้ภาพที่ไม่เกิน 25 ล้านพิกเซล")
         return
 
     try:
@@ -89,8 +100,8 @@ def show_model_demo() -> None:
                 verbose=False,
             )[0]
             elapsed_ms = (perf_counter() - started) * 1000
-    except Exception as error:
-        st.error(f"ไม่สามารถประมวลผลภาพได้: {error}")
+    except Exception:
+        st.error("ไม่สามารถประมวลผลภาพได้ กรุณาลองภาพอื่นหรือลองใหม่ภายหลัง")
         return
 
     rows = detection_rows(result)

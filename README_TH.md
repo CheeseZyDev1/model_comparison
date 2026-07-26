@@ -4,7 +4,7 @@
 
 ## อัปขึ้น GitHub และ Deploy ผ่าน Streamlit Community Cloud
 
-ให้อัปโหลด **เฉพาะไฟล์ภายในโฟลเดอร์ `model_comparison`** เป็น root ของ GitHub repository อย่าอัปโหลดโฟลเดอร์ `PJ1` ทั้งก้อน และห้ามเพิ่ม `xrayfsod_outputs`, Dataset, `.pt`, `test_predictions.json`, `.env` หรือ `.streamlit/secrets.toml`
+ให้อัปโหลด **เฉพาะไฟล์ภายในโฟลเดอร์ `model_comparison`** เป็น root ของ GitHub repository อย่าอัปโหลดโฟลเดอร์ `PJ1` ทั้งก้อน และห้ามเพิ่ม `xrayfsod_outputs`, Dataset, weight อื่นนอกเหนือจาก `models/yolov11_xrayfsod_best.pt`, `test_predictions.json`, `.env` หรือ `.streamlit/secrets.toml`
 
 ก่อนอัปโหลด หากต้องการสร้าง public report ใหม่ ให้รันจาก `model_comparison`:
 
@@ -12,7 +12,7 @@
 python build_public_report.py "..\xrayfsod_outputs"
 ```
 
-`public_report/` มีเฉพาะ CSV และกราฟที่ลบ path ภายในเครื่องแล้ว เมื่อรันบน Cloud เว็บจะเข้าโหมด read-only อัตโนมัติ จึงไม่มีช่องกรอก path และไม่มีปุ่มสั่ง evaluator ที่คนภายนอกใช้กินทรัพยากรได้
+`public_report/` มีเฉพาะ CSV และกราฟที่ลบ path ภายในเครื่องแล้ว เมื่อรันบน Cloud หน้า report จะเข้าโหมด read-only อัตโนมัติ จึงไม่มีช่องกรอก path และไม่มีปุ่มสั่ง evaluator ที่คนภายนอกใช้กินทรัพยากรได้ ส่วนหน้า demo ใช้เฉพาะ selected YOLO weight ที่ระบุ checksum ไว้ใน `models/README.md`
 
 ขั้นตอน deploy:
 
@@ -61,6 +61,12 @@ http://<IP-ของเซิร์ฟเวอร์>:8501
 4. เลือก Confidence และ IoU หรือใช้ค่าเริ่มต้น 0.25/0.50
 5. กด **ประเมินโมเดล** แล้วรอจนขึ้นข้อความสำเร็จ
 6. ดูอันดับรวม, Learning curves, กราฟเปรียบเทียบ และแท็บรายโมเดล หรือดาวน์โหลด `summary.csv`
+
+เมนูบนเว็บมี 3 หน้า:
+
+1. **ผลเปรียบเทียบโมเดล** — สรุปผู้ชนะ ตาราง metric, training settings, learning curves และผลรายคลาส
+2. **ทดสอบโมเดลจริง** — อัปโหลดภาพเอกซเรย์ไม่เกิน 10 MB แล้วกดเริ่มตรวจจับด้วย YOLOv11
+3. **อ่านเล่มปริญญานิพนธ์** — อ่านทีละหน้าและดาวน์โหลด PDF ฉบับปัจจุบัน
 
 หน้า **Training settings** จะแสดงค่าจาก `config.json`/`metrics.json` ของแต่ละ run เช่น model/weights, image size, epochs, batch size, optimizer, learning rate, AMP, seed, จำนวนพารามิเตอร์, เวลาเทรน และ test FPS พร้อมรายละเอียด protocol ที่ใช้ใน notebook
 
