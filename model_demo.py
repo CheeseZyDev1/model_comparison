@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+from functools import lru_cache
 from pathlib import Path
 from queue import Empty, Full, Queue
 from time import monotonic, perf_counter
@@ -9,7 +10,7 @@ from time import monotonic, perf_counter
 import numpy as np
 import pandas as pd
 import streamlit as st
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -18,12 +19,52 @@ MAX_IMAGE_PIXELS = 25_000_000
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
+CLASS_DISPLAY_NAMES = {
+    "laptop": "โน้ตบุ๊ก",
+    "lighter": "ไฟแช็ก",
+    "portable_charger_2": "พาวเวอร์แบงก์",
+    "iron_shoe": "เตารีด",
+    "straight_knife": "มีดปลายตรง",
+    "folding_knife": "มีดพับ",
+    "scissor": "กรรไกร",
+    "multi-tool_knife": "มีดอเนกประสงค์",
+    "umbrella": "ร่ม",
+    "glass_bottle": "ขวดแก้ว",
+    "battery": "แบตเตอรี่",
+    "metal_cup": "แก้วโลหะ",
+    "nail_clippers": "กรรไกรตัดเล็บ",
+    "pressure_tank": "ถังแรงดัน",
+    "spray_alcohol": "สเปรย์แอลกอฮอล์",
+    "portable_charger_1": "พาวเวอร์แบงก์",
+    "utility_knife": "มีดคัตเตอร์",
+    "mobile_phone": "โทรศัพท์มือถือ",
+    "metal_can": "กระป๋องโลหะ",
+    "drink_bottle": "ขวดเครื่องดื่ม",
+}
+LABEL_FONT_PATHS = (
+    Path("C:/Windows/Fonts/LeelawUI.ttf"),
+    Path("/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf"),
+    Path("/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf"),
+)
+
 
 @st.cache_resource(show_spinner=False)
 def load_demo_model():
     from ultralytics import YOLO
 
     return YOLO(str(MODEL_PATH))
+
+
+def display_name(class_name: str) -> str:
+    return CLASS_DISPLAY_NAMES.get(class_name, class_name.replace("_", " ").title())
+
+
+@lru_cache(maxsize=16)
+def label_font(size: int):
+    for path in LABEL_FONT_PATHS:
+        if path.is_file():
+            return ImageFont.truetype(str(path), size=size)
+    return ImageFont.load_default()
 
 
 def detection_rows(result) -> list[dict]:
@@ -35,9 +76,10 @@ def detection_rows(result) -> list[dict]:
     for box in result.boxes:
         x1, y1, x2, y2 = box.xyxy[0].tolist()
         class_id = int(box.cls[0].item())
+        raw_name = str(names.get(class_id, class_id))
         rows.append(
             {
-                "class": str(names.get(class_id, class_id)),
+                "class": display_name(raw_name),
                 "confidence": round(float(box.conf[0].item()), 3),
                 "x1": round(x1, 1),
                 "y1": round(y1, 1),
@@ -46,6 +88,35 @@ def detection_rows(result) -> list[dict]:
             }
         )
     return rows
+
+
+def annotate_detections(image: Image.Image, rows: list[dict], status: str | None = None) -> Image.Image:
+    canvas = image.convert("RGB").copy()
+    draw = ImageDraw.Draw(canvas)
+    font = label_font(max(16, min(28, canvas.width // 36)))
+
+    for row in rows:
+        x1, y1, x2, y2 = (int(row[key]) for key in ("x1", "y1", "x2", "y2"))
+        label = f"{row['class']} {row['confidence']:.2f}"
+        text_left, text_top, text_right, text_bottom = draw.textbbox((0, 0), label, font=font)
+        text_width = text_right - text_left
+        text_height = text_bottom - text_top
+        label_top = max(y1 - text_height - 12, 0)
+        label_right = min(x1 + text_width + 12, canvas.width)
+
+        draw.rectangle((x1, y1, x2, y2), outline="#22c55e", width=3)
+        draw.rounded_rectangle((x1, label_top, label_right, label_top + text_height + 10), radius=4, fill="#14532d")
+        draw.text((x1 + 6, label_top + 3), label, font=font, fill="white")
+
+    if status:
+        status_font = label_font(max(15, min(24, canvas.width // 42)))
+        left, top, right, bottom = draw.textbbox((0, 0), status, font=status_font)
+        status_width = right - left
+        status_height = bottom - top
+        draw.rounded_rectangle((8, 8, status_width + 24, status_height + 22), radius=4, fill="#1f2937")
+        draw.text((16, 12), status, font=status_font, fill="white")
+
+    return canvas
 
 
 def read_image(uploaded) -> Image.Image | None:
@@ -82,7 +153,7 @@ def run_detection(image: Image.Image, confidence: float, iou: float):
 
 def show_detection_result(image: Image.Image, result, elapsed_ms: float, source: str) -> None:
     rows = detection_rows(result)
-    annotated = result.plot()
+    annotated = annotate_detections(image, rows)
 
     original_column, result_column = st.columns(2)
     with original_column:
@@ -91,7 +162,6 @@ def show_detection_result(image: Image.Image, result, elapsed_ms: float, source:
         st.image(
             annotated,
             caption="ผลการตรวจจับจาก YOLOv11",
-            channels="BGR",
             use_container_width=True,
         )
 
@@ -103,7 +173,17 @@ def show_detection_result(image: Image.Image, result, elapsed_ms: float, source:
 
     st.subheader("รายละเอียดผลการตรวจจับ")
     if rows:
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        display_rows = pd.DataFrame(rows).rename(
+            columns={
+                "class": "วัตถุ",
+                "confidence": "ความมั่นใจ",
+                "x1": "x1",
+                "y1": "y1",
+                "x2": "x2",
+                "y2": "y2",
+            }
+        )
+        st.dataframe(display_rows, use_container_width=True, hide_index=True)
     else:
         st.info("ไม่พบวัตถุที่มี confidence สูงกว่าค่าที่กำหนด")
 
@@ -174,7 +254,6 @@ class LiveYoloProcessor:
 
     def recv(self, frame):
         import av
-        import cv2
 
         image = frame.to_ndarray(format="bgr24")
         now = monotonic()
@@ -193,36 +272,12 @@ class LiveYoloProcessor:
 
             busy = self._busy
 
-        annotated = image.copy()
-        for row in detections:
-            x1, y1, x2, y2 = (int(row[key]) for key in ("x1", "y1", "x2", "y2"))
-            cv2.rectangle(annotated, (x1, y1), (x2, y2), (38, 207, 108), 2)
-            label = f"{row['class']} {row['confidence']:.2f}"
-            label_y = max(y1 - 8, 20)
-            cv2.putText(
-                annotated,
-                label,
-                (x1, label_y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (38, 207, 108),
-                2,
-                cv2.LINE_AA,
-            )
-
-        status = "Detecting..." if busy else f"Latest: {len(detections)} objects | {inference_ms:.0f} ms"
-        cv2.rectangle(annotated, (0, 0), (min(annotated.shape[1], 430), 34), (20, 20, 20), -1)
-        cv2.putText(
-            annotated,
-            status,
-            (10, 24),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (255, 255, 255),
-            1,
-            cv2.LINE_AA,
+        status = "กำลังตรวจจับ..." if busy else f"ผลล่าสุด: {len(detections)} วัตถุ | {inference_ms:.0f} ms"
+        annotated = annotate_detections(Image.fromarray(image[:, :, ::-1].copy()), detections, status)
+        return av.VideoFrame.from_ndarray(
+            np.ascontiguousarray(np.asarray(annotated)[:, :, ::-1]),
+            format="bgr24",
         )
-        return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
 
 def live_rtc_configuration() -> dict:
@@ -288,9 +343,22 @@ def show_model_demo() -> None:
 
     threshold_column, iou_column = st.columns(2)
     with threshold_column:
-        confidence = st.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05)
+        confidence = st.slider("Confidence threshold (ความมั่นใจขั้นต่ำ)", 0.05, 0.95, 0.25, 0.05)
     with iou_column:
-        iou = st.slider("IoU threshold", 0.10, 0.90, 0.50, 0.05)
+        iou = st.slider("IoU threshold (การจัดการกรอบซ้อน)", 0.10, 0.90, 0.50, 0.05)
+
+    with st.expander("ความหมายของค่า Confidence และ IoU"):
+        st.markdown(
+            """
+**Confidence threshold** คือระดับความมั่นใจขั้นต่ำที่โมเดลต้องมีจึงจะแสดงวัตถุนั้นบนภาพ
+เมื่อปรับให้ต่ำลง จะเห็นวัตถุที่โมเดลยังไม่มั่นใจมากขึ้น แต่ผลที่คลาดเคลื่อนอาจเพิ่มขึ้น
+เมื่อปรับให้สูงขึ้น จะแสดงเฉพาะผลที่โมเดลมั่นใจมากขึ้น แต่อาจพลาดวัตถุบางรายการได้
+
+**IoU threshold** ใช้จัดการกรอบตรวจจับที่ซ้อนทับกัน
+เมื่อปรับให้ต่ำลง ระบบจะตัดกรอบที่ทับซ้อนกันออกมากขึ้น
+เมื่อปรับให้สูงขึ้น ระบบจะเก็บกรอบที่ซ้อนกันไว้มากขึ้น ซึ่งอาจเห็นกรอบซ้ำสำหรับวัตถุเดียวกัน
+"""
+        )
 
     source = st.radio(
         "แหล่งภาพ",
