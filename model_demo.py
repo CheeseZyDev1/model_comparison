@@ -225,6 +225,25 @@ class LiveYoloProcessor:
         return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
 
+def live_rtc_configuration() -> dict:
+    ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+    try:
+        turn_url = str(st.secrets.get("TURN_URL", "")).strip()
+        turn_username = str(st.secrets.get("TURN_USERNAME", "")).strip()
+        turn_credential = str(st.secrets.get("TURN_CREDENTIAL", "")).strip()
+    except Exception:
+        return {"iceServers": ice_servers}
+    if turn_url and turn_username and turn_credential:
+        ice_servers.append(
+            {
+                "urls": [turn_url],
+                "username": turn_username,
+                "credential": turn_credential,
+            }
+        )
+    return {"iceServers": ice_servers}
+
+
 def show_live_camera(confidence: float, iou: float) -> None:
     try:
         from streamlit_webrtc import webrtc_streamer
@@ -250,7 +269,7 @@ def show_live_camera(confidence: float, iou: float) -> None:
     webrtc_streamer(
         key=f"yolov11-live-{confidence:.2f}-{iou:.2f}-{interval_seconds:.1f}",
         video_processor_factory=processor_factory,
-        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+        rtc_configuration=live_rtc_configuration(),
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
         video_html_attrs={"autoPlay": True, "controls": False, "muted": True},

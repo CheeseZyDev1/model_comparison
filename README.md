@@ -14,6 +14,16 @@ The committed `public_report/` contains only sanitized CSV/PNG report artifacts.
 
 For live camera mode, allow browser camera permission and press `START`. Inference runs in a background worker at a configurable interval, so the preview continues to update while the selected YOLOv11 model detects multiple objects in the frame. HTTPS is required for camera access; if a network blocks WebRTC, use camera snapshot mode instead.
 
+For reliable live camera use on Streamlit Community Cloud, configure a TURN relay in the app's Secrets. Do not commit these credentials:
+
+```toml
+TURN_URL = "turn:your-turn-server.example:3478"
+TURN_USERNAME = "your-username"
+TURN_CREDENTIAL = "your-password"
+```
+
+The app still uses a public STUN server when these values are absent, which can work on some networks but cannot traverse every NAT or firewall.
+
 Deploy with Streamlit Community Cloud:
 
 1. Create a GitHub repository and put the contents of this folder at its root.
